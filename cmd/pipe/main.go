@@ -19,7 +19,7 @@ func main() {
 
 	switch os.Args[1] {
 	case "demo":
-		fmt.Println("pipe.dev demo — coming soon")
+		runDemo()
 	case "run":
 		if len(os.Args) < 3 {
 			fmt.Fprintln(os.Stderr, "Usage: pipe run <pipeline.yaml>")
@@ -41,6 +41,19 @@ func main() {
 
 		runPipeline(p)
 	}
+}
+
+func runDemo() {
+	// A showcase pipeline using universally available commands.
+	// Generates 1000 numbers, filters, sorts, deduplicates, and counts.
+	adapter := &unix.Adapter{}
+	p, err := adapter.Parse("seq 1 1000 | grep -E '7$' | sort -r | head -20 | wc -l")
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
+	}
+	p.Name = "Demo Pipeline"
+	runPipeline(p)
 }
 
 func runPipeline(p *pipeline.Pipeline) {
