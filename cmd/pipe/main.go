@@ -47,7 +47,7 @@ func runDemo() {
 	// A showcase pipeline using universally available commands.
 	// Generates 1000 numbers, filters, sorts, deduplicates, and counts.
 	adapter := &unix.Adapter{}
-	p, err := adapter.Parse("seq 1 1000 | grep -E '7$' | sort -r | head -20 | wc -l")
+	p, err := adapter.Parse("seq 1 1000 | grep 7 | sort -r | head -20 | wc -l")
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		os.Exit(1)
