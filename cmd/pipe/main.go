@@ -3,11 +3,11 @@ package main
 import (
 	"fmt"
 	"os"
-	"strings"
-	"time"
 
+	tea "charm.land/bubbletea/v2"
 	"github.com/mathew-builds/pipe-dev/internal/adapter/unix"
 	"github.com/mathew-builds/pipe-dev/internal/pipeline"
+	"github.com/mathew-builds/pipe-dev/internal/ui"
 	"github.com/mathew-builds/pipe-dev/pkg/version"
 )
 
@@ -44,74 +44,12 @@ func main() {
 }
 
 func runPipeline(p *pipeline.Pipeline) {
-	fmt.Printf("Pipeline: %s (%d stages)\n\n", p.Name, len(p.Stages))
-
-	// Print stage layout.
-	for i, stage := range p.Stages {
-		arrow := "→"
-		if i == 0 {
-			arrow = "●"
-		}
-		cmd := stage.Command
-		if len(stage.Args) > 0 {
-			cmd += " " + strings.Join(stage.Args, " ")
-		}
-		fmt.Printf("  %s [%d] %s\n", arrow, i, cmd)
+	m := ui.NewModel(p)
+	prog := tea.NewProgram(m)
+	if _, err := prog.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(1)
 	}
-	fmt.Println()
-
-	// Execute pipeline and stream events.
-	runner := pipeline.NewRunner(p)
-	go runner.Run()
-
-	for event := range runner.Events {
-		switch event.Type {
-		case pipeline.EventStageStarted:
-			stage := findStage(p, event.StageID)
-			fmt.Printf("  ▶ %s started\n", stage.Name)
-
-		case pipeline.EventStageDone:
-			stage := findStage(p, event.StageID)
-			stats := stage.Stats
-			fmt.Printf("  ✓ %s done — %s, %d bytes, %d lines\n",
-				stage.Name,
-				formatDuration(stats.Duration),
-				stats.BytesOut,
-				stats.LinesOut,
-			)
-
-		case pipeline.EventStageFailed:
-			stage := findStage(p, event.StageID)
-			stderr := ""
-			if len(event.Output) > 0 {
-				stderr = " — " + strings.TrimSpace(string(event.Output))
-			}
-			fmt.Fprintf(os.Stderr, "  ✗ %s failed: %v%s\n", stage.Name, event.Err, stderr)
-
-		case pipeline.EventPipelineDone:
-			fmt.Println()
-			fmt.Println("Pipeline complete.")
-		}
-	}
-}
-
-func findStage(p *pipeline.Pipeline, id string) *pipeline.Stage {
-	for _, s := range p.Stages {
-		if s.ID == id {
-			return s
-		}
-	}
-	return &pipeline.Stage{Name: "unknown"}
-}
-
-func formatDuration(d time.Duration) string {
-	if d < time.Millisecond {
-		return fmt.Sprintf("%dµs", d.Microseconds())
-	}
-	if d < time.Second {
-		return fmt.Sprintf("%dms", d.Milliseconds())
-	}
-	return fmt.Sprintf("%.1fs", d.Seconds())
 }
 
 func printUsage() {
