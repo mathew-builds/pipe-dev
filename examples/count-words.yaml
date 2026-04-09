@@ -1,0 +1,12 @@
+name: Word Counter
+stages:
+  - name: Generate
+    command: echo the quick brown fox jumps over the lazy dog
+  - name: Split Words
+    command: tr ' ' '\n'
+  - name: Sort
+    command: sort
+  - name: Count
+    command: uniq -c
+  - name: Rank
+    command: sort -rn

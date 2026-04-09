@@ -6,6 +6,7 @@ import (
 
 	tea "charm.land/bubbletea/v2"
 	"github.com/mathew-builds/pipe-dev/internal/adapter/unix"
+	yamladapter "github.com/mathew-builds/pipe-dev/internal/adapter/yaml"
 	"github.com/mathew-builds/pipe-dev/internal/pipeline"
 	"github.com/mathew-builds/pipe-dev/internal/ui"
 	"github.com/mathew-builds/pipe-dev/pkg/version"
@@ -25,7 +26,13 @@ func main() {
 			fmt.Fprintln(os.Stderr, "Usage: pipe run <pipeline.yaml>")
 			os.Exit(1)
 		}
-		fmt.Printf("pipe.dev run %s — coming soon\n", os.Args[2])
+		adapter := &yamladapter.Adapter{}
+		p, err := adapter.Parse(os.Args[2])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		runPipeline(p)
 	case "--version", "-v":
 		fmt.Printf("pipe %s\n", version.Version)
 	case "--help", "-h":
