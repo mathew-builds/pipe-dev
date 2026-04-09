@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/mathew-builds/pipe-dev/internal/adapter/unix"
 	"github.com/mathew-builds/pipe-dev/pkg/version"
 )
 
@@ -28,7 +29,29 @@ func main() {
 		printUsage()
 	default:
 		// Treat as a Unix pipe command string
-		fmt.Printf("pipe.dev visualizing: %s — coming soon\n", os.Args[1])
+		adapter := &unix.Adapter{}
+		p, err := adapter.Parse(os.Args[1])
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Printf("Pipeline: %s (%d stages)\n\n", p.Name, len(p.Stages))
+		for i, stage := range p.Stages {
+			arrow := "→"
+			if i == 0 {
+				arrow = "●"
+			}
+			args := ""
+			if len(stage.Args) > 0 {
+				for _, a := range stage.Args {
+					args += " " + a
+				}
+			}
+			fmt.Printf("  %s [%d] %s%s\n", arrow, i, stage.Command, args)
+		}
+		fmt.Println()
+		fmt.Println("(runner not yet implemented — stages parsed only)")
 	}
 }
 
