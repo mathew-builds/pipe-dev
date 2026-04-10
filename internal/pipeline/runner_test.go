@@ -151,10 +151,10 @@ func TestRunThreeStages(t *testing.T) {
 
 	// First stage should have tracked output bytes.
 	stats := p.Stages[0].Stats
-	if stats.BytesOut == 0 {
+	if stats.LoadBytesOut() == 0 {
 		t.Error("stage 0 BytesOut should be > 0")
 	}
-	if stats.LinesOut == 0 {
+	if stats.LoadLinesOut() == 0 {
 		t.Error("stage 0 LinesOut should be > 0")
 	}
 }
