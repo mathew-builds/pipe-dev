@@ -17,14 +17,11 @@ const (
 
 // StageStats tracks real-time metrics for a pipeline stage.
 type StageStats struct {
-	BytesIn    int64
-	BytesOut   int64
-	LinesIn    int64
-	LinesOut   int64
-	Throughput float64 // bytes per second
-	StartedAt  time.Time
-	Duration   time.Duration
-	Output     *RingBuffer // last N lines of stage output
+	BytesOut  int64
+	LinesOut  int64
+	StartedAt time.Time
+	Duration  time.Duration
+	Output    *RingBuffer // last N lines of stage output
 }
 
 // LoadBytesOut atomically reads BytesOut (safe for concurrent UI reads).
@@ -45,8 +42,7 @@ type Stage struct {
 	Name      string
 	Command   string
 	Args      []string
-	DependsOn []string
-	Status    StageStatus
+	Status StageStatus
 	Stats     *StageStats
 	Error     error
 }

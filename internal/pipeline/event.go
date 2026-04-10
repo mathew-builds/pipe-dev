@@ -5,7 +5,6 @@ type EventType int
 
 const (
 	EventStageStarted EventType = iota
-	EventStageOutput
 	EventStageDone
 	EventStageFailed
 	EventPipelineDone
@@ -16,6 +15,6 @@ type Event struct {
 	Type    EventType
 	StageID string
 	Stats   *StageStats
-	Output  []byte // for EventStageOutput
+	Output  []byte // stderr output for EventStageFailed
 	Err     error  // for EventStageFailed
 }
