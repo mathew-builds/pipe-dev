@@ -94,27 +94,28 @@ func (m Model) View() tea.View {
 
 	flow := RenderFlow(m.pipeline, m.frame)
 
-	var footer string
+	statusBar := RenderStatusBar(m.pipeline, m.done)
+
+	parts := []string{title, flow}
 	if m.done {
+		var msgStyle lipgloss.Style
+		var msg string
 		if m.err != nil {
-			footerStyle := lipgloss.NewStyle().
+			msgStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color(ColorRed)).
 				MarginTop(1)
-			footer = footerStyle.Render("Pipeline failed.")
+			msg = msgStyle.Render("Pipeline failed.")
 		} else {
-			footerStyle := lipgloss.NewStyle().
+			msgStyle = lipgloss.NewStyle().
 				Foreground(lipgloss.Color(ColorGreen)).
 				MarginTop(1)
-			footer = footerStyle.Render("Pipeline complete.")
+			msg = msgStyle.Render("Pipeline complete.")
 		}
-	} else {
-		footerStyle := lipgloss.NewStyle().
-			Foreground(lipgloss.Color(ColorSubtext)).
-			MarginTop(1)
-		footer = footerStyle.Render("Running… press q to quit")
+		parts = append(parts, msg)
 	}
+	parts = append(parts, statusBar)
 
-	content := lipgloss.JoinVertical(lipgloss.Left, title, flow, footer)
+	content := lipgloss.JoinVertical(lipgloss.Left, parts...)
 
 	v := tea.NewView(content + "\n")
 	return v
