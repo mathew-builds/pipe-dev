@@ -12,7 +12,7 @@ import (
 const nodeWidth = 28
 
 // RenderNode draws a single pipeline stage as a styled box.
-func RenderNode(stage *pipeline.Stage) string {
+func RenderNode(stage *pipeline.Stage, selected bool) string {
 	var (
 		borderColor color.Color
 		statusIcon  string
@@ -83,6 +83,11 @@ func RenderNode(stage *pipeline.Stage) string {
 		Padding(0, 1).
 		BorderStyle(lipgloss.RoundedBorder()).
 		BorderForeground(borderColor)
+
+	if selected {
+		box = box.BorderStyle(lipgloss.DoubleBorder()).
+			BorderForeground(lipgloss.Color(ColorMauve))
+	}
 
 	return box.Render(content)
 }

@@ -19,6 +19,7 @@ type Model struct {
 	pipeline *pipeline.Pipeline
 	runner   *pipeline.Runner
 	frame    int
+	selected int // index of selected stage (-1 = none)
 	done     bool
 	err      error
 }
@@ -28,6 +29,7 @@ func NewModel(p *pipeline.Pipeline) Model {
 	return Model{
 		pipeline: p,
 		runner:   pipeline.NewRunner(p),
+		selected: -1,
 	}
 }
 
@@ -57,6 +59,18 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		switch msg.String() {
 		case "q", "ctrl+c":
 			return m, tea.Quit
+		case "tab":
+			m.selected++
+			if m.selected >= len(m.pipeline.Stages) {
+				m.selected = -1
+			}
+		case "shift+tab":
+			m.selected--
+			if m.selected < -1 {
+				m.selected = len(m.pipeline.Stages) - 1
+			}
+		case "escape":
+			m.selected = -1
 		}
 
 	case tickMsg:
@@ -92,11 +106,15 @@ func (m Model) View() tea.View {
 
 	title := titleStyle.Render(fmt.Sprintf("pipe.dev — %s", m.pipeline.Name))
 
-	flow := RenderFlow(m.pipeline, m.frame)
+	flow := RenderFlow(m.pipeline, m.frame, m.selected)
 
 	statusBar := RenderStatusBar(m.pipeline, m.done)
 
 	parts := []string{title, flow}
+	if m.selected >= 0 && m.selected < len(m.pipeline.Stages) {
+		inspector := RenderInspector(m.pipeline.Stages[m.selected], 60)
+		parts = append(parts, inspector)
+	}
 	if m.done {
 		var msgStyle lipgloss.Style
 		var msg string

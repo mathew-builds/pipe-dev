@@ -6,14 +6,14 @@ import (
 )
 
 // RenderFlow draws the full pipeline as a horizontal node → connector → node chain.
-func RenderFlow(p *pipeline.Pipeline, frame int) string {
+func RenderFlow(p *pipeline.Pipeline, frame int, selected int) string {
 	if len(p.Stages) == 0 {
 		return ""
 	}
 
 	var parts []string
 	for i, stage := range p.Stages {
-		node := RenderNode(stage)
+		node := RenderNode(stage, i == selected)
 		parts = append(parts, node)
 
 		if i < len(p.Stages)-1 {
