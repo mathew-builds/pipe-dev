@@ -1,43 +1,56 @@
 ## Session Prompt — pipe.dev
 
-### What Was Done (2026-04-09)
-MVP is fully functional. All three commands work:
-- `pipe "cmd1 | cmd2 | cmd3"` — parse and execute Unix pipes with TUI
-- `pipe run pipeline.yaml` — YAML pipeline execution with TUI
-- `pipe demo` — built-in 5-stage showcase pipeline
+### What Was Done (2026-04-10)
 
-8 commits from scaffolding through full MVP. 21 tests across 3 packages, all passing.
+**Animation & Polish (8 commits):**
+- Tick-based animation loop (100ms)
+- Animated flowing particle connectors between running stages
+- Real-time atomic byte/line counters during execution
+- Status bar with progress counter and key hints
+- Ring buffer capturing last 100 lines per stage
+- Inspector panel with Tab stage selection and live output preview
+- Larger demo dataset (10M numbers, ~2-3s runtime) + 2s linger after completion
 
-### Architecture Implemented
-```
-cmd/pipe/main.go           → CLI entry + TUI launch
-internal/pipeline/          → Domain model, runner (TeeReader), events
-internal/adapter/unix/      → Unix pipe string parser
-internal/adapter/yaml/      → YAML file parser
-internal/ui/                → Bubbletea v2 TUI (model, node, connector, flow, theme)
-pkg/version/                → Build-time version
-examples/                   → Sample YAML pipelines
-```
+**Consolidation Pass (4 commits):**
+- Fixed SIGPIPE handling — non-final stages treat SIGPIPE as success
+- Added upstream pipe reader close on stage completion (prevents deadlock)
+- Removed dead fields: BytesIn, LinesIn, Throughput, DependsOn, EventStageOutput
+- Updated CLAUDE.md to match reality (import paths, patterns, architecture section)
 
-### Key Technical Decisions
-- bubbletea v2 import path is `charm.land/bubbletea/v2` (not `github.com/charmbracelet`)
-- lipgloss v2 import path is `charm.land/lipgloss/v2`
-- exec.Command bypasses shell — no quotes needed in command strings
-- Runner uses io.Pipe + countingWriter between stages for byte/line tracking
-- Events emitted on channel, TUI reads via tea.Cmd
+**Completeness Audit:**
+- Ran product-completeness-checker skill against the full vision
+- Result: 28/35 items complete (80%). All code done. All gaps are launch infrastructure.
+- Generated launch-readiness plan: docs/plans/2026-04-10-002-fix-launch-readiness-plan.md
 
-### What's Next (Post-MVP Polish)
-- README.md — personal "I built this" tone, GIF/screenshot of TUI
-- CI setup (GitHub Actions for tests + lint)
-- Error UX improvements (e.g., graceful non-TTY fallback)
-- Inspector panel (select a stage node to see detailed stats)
-- Release workflow (goreleaser, homebrew tap)
-- Real-world testing with larger/longer-running pipelines
+### Current State
+- 35 tests across 4 packages, all passing
+- 12 commits ahead of origin/main
+- Code is MVP-complete. Launch packaging is 0% done.
 
-### CLAUDE.md Updates Needed
-- Dependencies section: update import paths to charm.land
-- Add `examples/` to architecture diagram
-- Consider adding a "Status: MVP complete" field
+### What's Next — Launch Readiness (target: 2026-04-22)
 
-### User Feedback
-- User will provide feedback in next session on overall approach and TUI quality
+Execute `docs/plans/2026-04-10-002-fix-launch-readiness-plan.md`:
+
+1. Clean up empty scaffold dirs (internal/app/, internal/tui/)
+2. GitHub Actions CI (test + lint)
+3. Goreleaser config + release workflow
+4. Record demo GIF with VHS
+5. Write README.md (personal tone, hero GIF, install, examples)
+6. CONTRIBUTING.md
+7. Tag v0.1.0 and release
+
+### Post-Launch Backlog
+See `docs/plans/2026-04-10-003-fix-post-launch-improvements-plan.md` for 10 items including race conditions, stderr display, terminal width, grep exit codes.
+
+### Key Decisions Made
+- SIGPIPE on non-final stages = success (matches Unix semantics)
+- Demo pipeline kept as-is (exercises SIGPIPE handling — good stress test)
+- Dead fields removed rather than implemented (ship what works, don't promise what doesn't)
+- Architecture.md vision is source of truth — referenced by completeness checker skill
+
+### Files to Reference
+- Launch plan: docs/plans/2026-04-10-002-fix-launch-readiness-plan.md
+- Post-launch backlog: docs/plans/2026-04-10-003-fix-post-launch-improvements-plan.md
+- Completeness skill: ~/.claude/skills/product-completeness-checker/SKILL.md
+- Feedback review: ~/Open_Source_Lab/01_Projects/pipe-dev/feedback/2026-04-09_mvp_review.md
+- Architecture: ~/Open_Source_Lab/01_Projects/pipe-dev/Architecture.md
