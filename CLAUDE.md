@@ -1,70 +1,82 @@
-# CLAUDE.md — pipe.dev
+# CLAUDE.md
 
-**pipe.dev** — See data flow through your terminal pipelines in real-time.
-"lazygit for data flows."
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
-## Quick Context
+## What This Is
 
-- **Author:** Mathew Joseph (github.com/mathew-builds)
-- **Tech:** Go + Bubbletea v2 + Lipgloss (Catppuccin Mocha theme)
-- **Goal:** GitHub Trending, 500+ stars in 90 days, GTV visa evidence
-- **Planning docs:** ~/Open_Source_Lab/01_Projects/pipe-dev/
+**pipe.dev** — Real-time visualization of data flowing through terminal pipelines. "lazygit for data flows."
+
+Go + Bubbletea v2 + Lipgloss v2, Catppuccin Mocha theme. Module: `github.com/mathew-builds/pipe-dev`.
+
+## Build & Test Commands
+
+```bash
+make build              # Build binary with version from git tags
+make test               # Run all tests (go test ./... -v)
+make lint               # golangci-lint run
+make demo               # Build + run built-in demo
+make clean              # Remove binary
+
+# Run a single test:
+go test ./internal/pipeline -v -run TestRunTwoStages
+```
 
 ## Architecture
 
+Three layers: **Adapters** parse input into a Pipeline, the **Runner** executes it, the **UI** visualizes it.
+
 ```
-cmd/pipe/main.go                → CLI entry point
-internal/pipeline/pipeline.go   → Domain model (Pipeline, Stage, StageStats)
-internal/pipeline/runner.go     → Executes stages, countingWriter interception
-internal/pipeline/event.go      → Event types (StageStarted/Done/Failed/PipelineDone)
-internal/pipeline/ringbuffer.go → Thread-safe circular buffer for output capture
-internal/adapter/adapter.go     → Adapter interface
-internal/adapter/unix/unix.go   → Unix pipe string parser
-internal/adapter/yaml/yaml.go   → YAML pipeline file parser
-internal/ui/model.go            → Main Bubbletea model (tick loop, event handling)
-internal/ui/flow.go             → Flow visualization (nodes + connectors)
-internal/ui/node.go             → Stage node rendering
-internal/ui/connector.go        → Animated flowing particles between stages
-internal/ui/inspector.go        → Data preview panel (Tab to select stage)
-internal/ui/statusbar.go        → Progress counter + key hints
-internal/ui/helpers.go          → Formatting utilities (bytes, lines, duration)
-internal/ui/theme.go            → Catppuccin Mocha color palette
-pkg/version/                    → Build-time version
+Adapter.Parse(input) → Pipeline → Runner.Run() → Events channel → Bubbletea UI
 ```
 
-### Key Patterns
-- **Adapter interface:** `Parse(input) -> Pipeline`. UI is source-agnostic.
-- **countingWriter interception:** stdout piped through io.Pipe with countingWriter for byte/line monitoring and ring buffer capture.
-- **Bubbletea messages:** Runner emits StageStarted/Done/Failed/PipelineDone. UI reads events via blocking tea.Cmd on runner channel.
-- **SIGPIPE handling:** Non-final stages receiving SIGPIPE (from downstream early exit) are treated as successful completion.
+### Adapters (`internal/adapter/`)
 
-## MVP Commands
+Interface: `Parse(input string) (*pipeline.Pipeline, error)`. Two implementations:
+- `unix/` — splits shell pipe string on `|`, tokenizes with `strings.Fields()` (no shell quote parsing)
+- `yaml/` — reads YAML file with `name` + `stages` array
 
-```bash
-pipe "cmd1 | cmd2 | cmd3"    # Visualize Unix pipes
-pipe run pipeline.yaml        # Run YAML pipeline
-pipe demo                     # Built-in demo showcase
-```
+### Runner (`internal/pipeline/runner.go`)
 
-## Build & Run
+Starts all stages concurrently (like real shell pipes), chained via `io.Pipe`. Each stage's stdout is wrapped in a `countingWriter` that:
+1. Atomically updates `StageStats.BytesOut` / `LinesOut` (safe for concurrent UI reads)
+2. Captures complete lines into a `RingBuffer` (last 100 lines, for the inspector panel)
+3. Forwards bytes to the next stage's stdin (or discards for final stage)
 
-```bash
-make build    # Build binary
-make demo     # Build and run demo
-make test     # Run tests
-make lint     # Run linter
-```
+Emits events on a channel: `EventStageStarted` → `EventStageDone`/`EventStageFailed` → `EventPipelineDone`.
+
+**SIGPIPE handling:** Non-final stages receiving SIGPIPE (e.g., downstream `head` exits early) are treated as successful completion — this matches Unix semantics.
+
+### UI (`internal/ui/`)
+
+Bubbletea model with a 100ms tick loop driving animation. Reads events via a **blocking `tea.Cmd`** that directly reads from `runner.Events` channel (not `tea.Sub`).
+
+- `flow.go` — horizontal stage layout with animated connectors
+- `connector.go` — 6-frame particle animation between stages
+- `node.go` — stage box with name, status icon, live stats
+- `inspector.go` — Tab-selectable panel showing stage output from ring buffer
+- `theme.go` — Catppuccin Mocha palette (all colors defined here)
+
+### Domain Model (`internal/pipeline/pipeline.go`)
+
+`Pipeline` → `[]Stage` → `StageStats`. Stats use `atomic.AddInt64`/`atomic.LoadInt64` for lock-free concurrent access between runner (writer) and UI (reader).
+
+## Testing Conventions
+
+- Table-driven tests with `name`/`input`/`expected` structs
+- Integration-style: tests run real commands (`echo`, `grep`, `wc`)
+- No assertion libraries — direct `if != { t.Errorf }` comparisons
+- Helper functions: `buildPipeline()`, `collectEvents()` to reduce boilerplate
 
 ## Dependencies
 
 - Go 1.25+
-- charm.land/bubbletea/v2
-- charm.land/lipgloss/v2
-- gopkg.in/yaml.v3
+- `charm.land/bubbletea/v2` — TUI framework
+- `charm.land/lipgloss/v2` — Styling
+- `gopkg.in/yaml.v3` — YAML parsing
 
-## What NOT to Do
+## Constraints
 
 - Do NOT add adapters beyond unix and yaml in v0.1
-- Do NOT add a plugin loader yet (architecture supports it, but not for MVP)
+- Do NOT add a plugin loader yet
 - Do NOT use corporate voice in README — personal "I built this" tone
 - Do NOT over-engineer — ship fast, polish later
