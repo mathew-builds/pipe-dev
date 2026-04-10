@@ -84,6 +84,23 @@ func (r *Runner) Run() error {
 			stage.Status = StatusFailed
 			stage.Error = err
 			r.emit(Event{Type: EventStageFailed, StageID: stage.ID, Err: err})
+
+			// Close the pipe writer so the previous stage gets a write error
+			// instead of blocking forever.
+			if i < len(cmds)-1 {
+				if cw, ok := cmds[i].Stdout.(*countingWriter); ok {
+					if pw, ok := cw.w.(*io.PipeWriter); ok {
+						pw.CloseWithError(err)
+					}
+				}
+			}
+			// Also close the pipe reader so the previous stage's pipe writer
+			// doesn't block. The stdin for this stage is a pipe reader.
+			if i > 0 {
+				if pr, ok := cmds[i].Stdin.(*io.PipeReader); ok {
+					pr.CloseWithError(err)
+				}
+			}
 			continue
 		}
 

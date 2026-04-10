@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"testing"
+	"time"
 )
 
 func buildPipeline(cmds ...string) *Pipeline {
@@ -210,5 +211,41 @@ func TestByteCounterAccuracy(t *testing.T) {
 	}
 	if stats.LinesOut != 1 {
 		t.Errorf("LinesOut = %d, want 1", stats.LinesOut)
+	}
+}
+
+func TestRunFailedMiddleStage(t *testing.T) {
+	// Stage 0 produces output, stage 1 is a bad command, stage 2 should still get events.
+	p := buildPipeline("echo hello", "command_that_does_not_exist_xyz", "wc -l")
+	r := NewRunner(p)
+
+	// This must not deadlock. Use a timeout.
+	done := make(chan error, 1)
+	go func() {
+		done <- r.Run()
+	}()
+
+	select {
+	case <-done:
+		// Good — it completed.
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run() deadlocked — pipe leak on Start() failure")
+	}
+
+	events := collectEvents(r)
+
+	var failed int
+	for _, e := range events {
+		if e.Type == EventStageFailed {
+			failed++
+		}
+	}
+
+	if failed == 0 {
+		t.Error("expected at least one StageFailed event")
+	}
+
+	if p.Stages[1].Status != StatusFailed {
+		t.Errorf("stage 1 status = %v, want StatusFailed", p.Stages[1].Status)
 	}
 }
