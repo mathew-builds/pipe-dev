@@ -10,9 +10,13 @@ import (
 )
 
 const tickInterval = 100 * time.Millisecond
+const lingerDuration = 2 * time.Second
 
 // tickMsg is sent on each animation tick.
 type tickMsg time.Time
+
+// lingerDoneMsg fires after the post-completion linger period.
+type lingerDoneMsg struct{}
 
 // Model is the main Bubbletea model for the pipeline TUI.
 type Model struct {
@@ -80,10 +84,15 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, nil
 
+	case lingerDoneMsg:
+		return m, tea.Quit
+
 	case pipelineEventMsg:
 		if msg.done {
 			m.done = true
-			return m, tea.Quit
+			return m, tea.Tick(lingerDuration, func(time.Time) tea.Msg {
+				return lingerDoneMsg{}
+			})
 		}
 
 		if msg.event.Type == pipeline.EventStageFailed && msg.event.Err != nil {
