@@ -2,16 +2,23 @@ package ui
 
 import (
 	"fmt"
+	"time"
 
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
 	"github.com/mathew-builds/pipe-dev/internal/pipeline"
 )
 
+const tickInterval = 100 * time.Millisecond
+
+// tickMsg is sent on each animation tick.
+type tickMsg time.Time
+
 // Model is the main Bubbletea model for the pipeline TUI.
 type Model struct {
 	pipeline *pipeline.Pipeline
 	runner   *pipeline.Runner
+	frame    int
 	done     bool
 	err      error
 }
@@ -33,7 +40,14 @@ type pipelineEventMsg struct {
 // Init starts the pipeline runner and returns a command to listen for events.
 func (m Model) Init() tea.Cmd {
 	go m.runner.Run()
-	return m.waitForEvent()
+	return tea.Batch(m.waitForEvent(), m.tick())
+}
+
+// tick returns a command that sends a tickMsg after the tick interval.
+func (m Model) tick() tea.Cmd {
+	return tea.Tick(tickInterval, func(t time.Time) tea.Msg {
+		return tickMsg(t)
+	})
 }
 
 // Update handles incoming messages.
@@ -44,6 +58,13 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case "q", "ctrl+c":
 			return m, tea.Quit
 		}
+
+	case tickMsg:
+		if !m.done {
+			m.frame++
+			return m, m.tick()
+		}
+		return m, nil
 
 	case pipelineEventMsg:
 		if msg.done {
