@@ -197,6 +197,33 @@ func TestRunEmptyPipeline(t *testing.T) {
 	}
 }
 
+func TestLiveStatsUpdatedDuringExecution(t *testing.T) {
+	p := buildPipeline("seq 1 100000")
+	r := NewRunner(p)
+
+	go r.Run()
+
+	// Wait for stage to start.
+	e := <-r.Events
+	if e.Type != EventStageStarted {
+		t.Fatalf("expected StageStarted, got %v", e.Type)
+	}
+
+	// Give the command a moment to produce some output.
+	time.Sleep(50 * time.Millisecond)
+
+	// Stats should be updating in real-time.
+	stats := p.Stages[0].Stats
+	bytesOut := stats.LoadBytesOut()
+	if bytesOut == 0 {
+		t.Error("BytesOut should be > 0 during execution")
+	}
+
+	// Drain remaining events.
+	for range r.Events {
+	}
+}
+
 func TestByteCounterAccuracy(t *testing.T) {
 	// "echo hello" outputs "hello\n" = 6 bytes, 1 line
 	p := buildPipeline("echo hello")
@@ -206,11 +233,11 @@ func TestByteCounterAccuracy(t *testing.T) {
 	collectEvents(r)
 
 	stats := p.Stages[0].Stats
-	if stats.BytesOut != 6 {
-		t.Errorf("BytesOut = %d, want 6", stats.BytesOut)
+	if stats.LoadBytesOut() != 6 {
+		t.Errorf("BytesOut = %d, want 6", stats.LoadBytesOut())
 	}
-	if stats.LinesOut != 1 {
-		t.Errorf("LinesOut = %d, want 1", stats.LinesOut)
+	if stats.LoadLinesOut() != 1 {
+		t.Errorf("LinesOut = %d, want 1", stats.LoadLinesOut())
 	}
 }
 

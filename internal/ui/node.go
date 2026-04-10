@@ -58,14 +58,14 @@ func RenderNode(stage *pipeline.Stage) string {
 		s := stage.Stats
 		if stage.Status == pipeline.StatusDone {
 			statsLine = fmt.Sprintf("%s  %s  %s",
-				formatBytes(s.BytesOut),
-				formatLines(s.LinesOut),
+				formatBytes(s.LoadBytesOut()),
+				formatLines(s.LoadLinesOut()),
 				formatDuration(s.Duration),
 			)
 		} else {
 			statsLine = fmt.Sprintf("%s  %s",
-				formatBytes(s.BytesOut),
-				formatLines(s.LinesOut),
+				formatBytes(s.LoadBytesOut()),
+				formatLines(s.LoadLinesOut()),
 			)
 		}
 	}

@@ -1,6 +1,9 @@
 package pipeline
 
-import "time"
+import (
+	"sync/atomic"
+	"time"
+)
 
 // StageStatus represents the current state of a pipeline stage.
 type StageStatus int
@@ -22,6 +25,18 @@ type StageStats struct {
 	StartedAt  time.Time
 	Duration   time.Duration
 }
+
+// LoadBytesOut atomically reads BytesOut (safe for concurrent UI reads).
+func (s *StageStats) LoadBytesOut() int64 { return atomic.LoadInt64(&s.BytesOut) }
+
+// LoadLinesOut atomically reads LinesOut (safe for concurrent UI reads).
+func (s *StageStats) LoadLinesOut() int64 { return atomic.LoadInt64(&s.LinesOut) }
+
+// AddBytesOut atomically increments BytesOut.
+func (s *StageStats) AddBytesOut(n int64) { atomic.AddInt64(&s.BytesOut, n) }
+
+// AddLinesOut atomically increments LinesOut.
+func (s *StageStats) AddLinesOut(n int64) { atomic.AddInt64(&s.LinesOut, n) }
 
 // Stage represents a single step in a pipeline.
 type Stage struct {

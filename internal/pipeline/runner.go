@@ -32,21 +32,19 @@ func (r *Runner) Run() error {
 	}
 
 	cmds := make([]*exec.Cmd, len(stages))
-	counters := make([]*byteCounter, len(stages))
 
-	// Build commands and wire pipes between them.
+	// Build commands and initialize stats early so countingWriters can reference them.
 	for i, stage := range stages {
 		cmds[i] = exec.Command(stage.Command, stage.Args...)
-		counters[i] = &byteCounter{}
+		stage.Stats = &StageStats{StartedAt: time.Now()}
 	}
 
-	// Chain stages: stage[i].stdout → counter → stage[i+1].stdin
+	// Chain stages: stage[i].stdout → countingWriter → stage[i+1].stdin
 	for i := 0; i < len(cmds)-1; i++ {
 		pr, pw := io.Pipe()
-		counter := counters[i]
 
 		// Stage i writes to a counting writer that forwards to the pipe.
-		cmds[i].Stdout = &countingWriter{w: pw, counter: counter}
+		cmds[i].Stdout = &countingWriter{w: pw, stats: stages[i].Stats}
 
 		// Stage i+1 reads from the pipe.
 		cmds[i+1].Stdin = pr
@@ -57,9 +55,8 @@ func (r *Runner) Run() error {
 	}
 
 	// Last stage writes to a counting writer backed by a discard buffer.
-	lastCounter := counters[len(cmds)-1]
 	lastBuf := &bytes.Buffer{}
-	cmds[len(cmds)-1].Stdout = &countingWriter{w: lastBuf, counter: lastCounter}
+	cmds[len(cmds)-1].Stdout = &countingWriter{w: lastBuf, stats: stages[len(cmds)-1].Stats}
 
 	// Capture stderr for error reporting.
 	stderrBufs := make([]*bytes.Buffer, len(cmds))
@@ -73,11 +70,10 @@ func (r *Runner) Run() error {
 	for i := range cmds {
 		stage := stages[i]
 		cmd := cmds[i]
-		counter := counters[i]
 		stderrBuf := stderrBufs[i]
 
 		stage.Status = StatusRunning
-		stage.Stats = &StageStats{StartedAt: time.Now()}
+		stage.Stats.StartedAt = time.Now() // Reset to accurate start time
 		r.emit(Event{Type: EventStageStarted, StageID: stage.ID})
 
 		if err := cmd.Start(); err != nil {
@@ -110,8 +106,6 @@ func (r *Runner) Run() error {
 
 			err := cmd.Wait()
 			stage.Stats.Duration = time.Since(stage.Stats.StartedAt)
-			stage.Stats.BytesOut = counter.bytes
-			stage.Stats.LinesOut = counter.lines
 
 			// Close the pipe writer so the next stage gets EOF.
 			if idx < len(cmds)-1 {
@@ -152,21 +146,17 @@ func (r *Runner) emit(e Event) {
 	r.Events <- e
 }
 
-// byteCounter tracks bytes and lines written through it.
-type byteCounter struct {
-	bytes int64
-	lines int64
-}
-
-// countingWriter wraps a writer and counts bytes/lines passing through.
+// countingWriter wraps a writer and atomically updates StageStats in real-time.
 type countingWriter struct {
-	w       io.Writer
-	counter *byteCounter
+	w     io.Writer
+	stats *StageStats
 }
 
 func (cw *countingWriter) Write(p []byte) (int, error) {
 	n, err := cw.w.Write(p)
-	cw.counter.bytes += int64(n)
-	cw.counter.lines += int64(bytes.Count(p[:n], []byte{'\n'}))
+	if n > 0 && cw.stats != nil {
+		cw.stats.AddBytesOut(int64(n))
+		cw.stats.AddLinesOut(int64(bytes.Count(p[:n], []byte{'\n'})))
+	}
 	return n, err
 }
