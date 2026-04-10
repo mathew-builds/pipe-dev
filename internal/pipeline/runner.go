@@ -36,7 +36,10 @@ func (r *Runner) Run() error {
 	// Build commands and initialize stats early so countingWriters can reference them.
 	for i, stage := range stages {
 		cmds[i] = exec.Command(stage.Command, stage.Args...)
-		stage.Stats = &StageStats{StartedAt: time.Now()}
+		stage.Stats = &StageStats{
+			StartedAt: time.Now(),
+			Output:    NewRingBuffer(100),
+		}
 	}
 
 	// Chain stages: stage[i].stdout → countingWriter → stage[i+1].stdin
@@ -147,9 +150,11 @@ func (r *Runner) emit(e Event) {
 }
 
 // countingWriter wraps a writer and atomically updates StageStats in real-time.
+// It also captures complete lines into the ring buffer for the inspector panel.
 type countingWriter struct {
-	w     io.Writer
-	stats *StageStats
+	w       io.Writer
+	stats   *StageStats
+	lineBuf []byte // accumulates partial lines
 }
 
 func (cw *countingWriter) Write(p []byte) (int, error) {
@@ -157,6 +162,20 @@ func (cw *countingWriter) Write(p []byte) (int, error) {
 	if n > 0 && cw.stats != nil {
 		cw.stats.AddBytesOut(int64(n))
 		cw.stats.AddLinesOut(int64(bytes.Count(p[:n], []byte{'\n'})))
+
+		// Capture lines for the ring buffer.
+		if cw.stats.Output != nil {
+			cw.lineBuf = append(cw.lineBuf, p[:n]...)
+			for {
+				idx := bytes.IndexByte(cw.lineBuf, '\n')
+				if idx < 0 {
+					break
+				}
+				line := string(cw.lineBuf[:idx])
+				cw.stats.Output.Write(line)
+				cw.lineBuf = cw.lineBuf[idx+1:]
+			}
+		}
 	}
 	return n, err
 }

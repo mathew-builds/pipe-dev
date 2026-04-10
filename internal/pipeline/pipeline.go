@@ -24,6 +24,7 @@ type StageStats struct {
 	Throughput float64 // bytes per second
 	StartedAt  time.Time
 	Duration   time.Duration
+	Output     *RingBuffer // last N lines of stage output
 }
 
 // LoadBytesOut atomically reads BytesOut (safe for concurrent UI reads).
