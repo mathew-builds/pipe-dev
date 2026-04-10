@@ -2,9 +2,11 @@ package pipeline
 
 import (
 	"bytes"
+	"errors"
 	"io"
 	"os/exec"
 	"sync"
+	"syscall"
 	"time"
 )
 
@@ -115,6 +117,27 @@ func (r *Runner) Run() error {
 				if cw, ok := cmds[idx].Stdout.(*countingWriter); ok {
 					if pw, ok := cw.w.(*io.PipeWriter); ok {
 						pw.Close()
+					}
+				}
+			}
+
+			// Close the upstream pipe reader so the previous stage's writes
+			// fail instead of blocking. Unlike OS pipes, Go's io.Pipe doesn't
+			// auto-close when the reading process exits.
+			if idx > 0 {
+				if pr, ok := cmds[idx].Stdin.(*io.PipeReader); ok {
+					pr.Close()
+				}
+			}
+
+			// Treat SIGPIPE as success for non-final stages.
+			// When a downstream stage exits early (e.g., head -20), upstream
+			// stages receive SIGPIPE — this is normal Unix pipe behavior.
+			if err != nil && idx < len(cmds)-1 {
+				var exitErr *exec.ExitError
+				if errors.As(err, &exitErr) {
+					if ws, ok := exitErr.Sys().(syscall.WaitStatus); ok && ws.Signal() == syscall.SIGPIPE {
+						err = nil
 					}
 				}
 			}

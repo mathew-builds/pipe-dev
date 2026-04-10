@@ -276,3 +276,49 @@ func TestRunFailedMiddleStage(t *testing.T) {
 		t.Errorf("stage 1 status = %v, want StatusFailed", p.Stages[1].Status)
 	}
 }
+
+func TestSIGPIPETreatedAsSuccess(t *testing.T) {
+	// When head exits after reading enough lines, upstream stages get SIGPIPE.
+	// This is normal Unix pipe behavior and should be treated as success.
+	p := buildPipeline("seq 1 100000", "head -1", "wc -l")
+	r := NewRunner(p)
+
+	done := make(chan error, 1)
+	go func() {
+		done <- r.Run()
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run() timed out")
+	}
+
+	for range r.Events {
+	}
+
+	// seq gets SIGPIPE when head exits — should still be StatusDone.
+	if p.Stages[0].Status != StatusDone {
+		t.Errorf("stage 0 (seq) status = %v, want StatusDone (SIGPIPE should be treated as success)", p.Stages[0].Status)
+	}
+	if p.Stages[1].Status != StatusDone {
+		t.Errorf("stage 1 (head) status = %v, want StatusDone", p.Stages[1].Status)
+	}
+	if p.Stages[2].Status != StatusDone {
+		t.Errorf("stage 2 (wc) status = %v, want StatusDone", p.Stages[2].Status)
+	}
+}
+
+func TestGenuineFailureNotMaskedBySIGPIPEFix(t *testing.T) {
+	// A real command failure on a non-final stage should still be StatusFailed.
+	p := buildPipeline("command_that_does_not_exist_xyz", "wc -l")
+	r := NewRunner(p)
+
+	r.Run()
+	for range r.Events {
+	}
+
+	if p.Stages[0].Status != StatusFailed {
+		t.Errorf("stage 0 status = %v, want StatusFailed (genuine failure, not SIGPIPE)", p.Stages[0].Status)
+	}
+}
