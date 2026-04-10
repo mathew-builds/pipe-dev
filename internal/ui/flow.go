@@ -6,7 +6,7 @@ import (
 )
 
 // RenderFlow draws the full pipeline as a horizontal node → connector → node chain.
-func RenderFlow(p *pipeline.Pipeline) string {
+func RenderFlow(p *pipeline.Pipeline, frame int) string {
 	if len(p.Stages) == 0 {
 		return ""
 	}
@@ -17,9 +17,10 @@ func RenderFlow(p *pipeline.Pipeline) string {
 		parts = append(parts, node)
 
 		if i < len(p.Stages)-1 {
-			// Match connector height to node height.
 			nodeHeight := lipgloss.Height(node)
-			parts = append(parts, RenderConnector(nodeHeight))
+			// Connector is active if the stage feeding into it is running.
+			active := stage.Status == pipeline.StatusRunning
+			parts = append(parts, RenderAnimatedConnector(nodeHeight, frame, active))
 		}
 	}
 

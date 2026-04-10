@@ -92,7 +92,7 @@ func (m Model) View() tea.View {
 
 	title := titleStyle.Render(fmt.Sprintf("pipe.dev — %s", m.pipeline.Name))
 
-	flow := RenderFlow(m.pipeline)
+	flow := RenderFlow(m.pipeline, m.frame)
 
 	var footer string
 	if m.done {
