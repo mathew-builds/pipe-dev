@@ -13,18 +13,30 @@
 ## Architecture
 
 ```
-cmd/pipe/main.go           → CLI entry point
-internal/pipeline/          → Domain model (Pipeline, Stage, StageStats)
-internal/pipeline/runner.go → Executes stages, TeeReader interception
-internal/adapter/           → Adapter interface + unix/yaml implementations
-internal/ui/                → Bubbletea TUI components (flow, node, connector, inspector)
-pkg/version/                → Build-time version
+cmd/pipe/main.go                → CLI entry point
+internal/pipeline/pipeline.go   → Domain model (Pipeline, Stage, StageStats)
+internal/pipeline/runner.go     → Executes stages, countingWriter interception
+internal/pipeline/event.go      → Event types (StageStarted/Done/Failed/PipelineDone)
+internal/pipeline/ringbuffer.go → Thread-safe circular buffer for output capture
+internal/adapter/adapter.go     → Adapter interface
+internal/adapter/unix/unix.go   → Unix pipe string parser
+internal/adapter/yaml/yaml.go   → YAML pipeline file parser
+internal/ui/model.go            → Main Bubbletea model (tick loop, event handling)
+internal/ui/flow.go             → Flow visualization (nodes + connectors)
+internal/ui/node.go             → Stage node rendering
+internal/ui/connector.go        → Animated flowing particles between stages
+internal/ui/inspector.go        → Data preview panel (Tab to select stage)
+internal/ui/statusbar.go        → Progress counter + key hints
+internal/ui/helpers.go          → Formatting utilities (bytes, lines, duration)
+internal/ui/theme.go            → Catppuccin Mocha color palette
+pkg/version/                    → Build-time version
 ```
 
 ### Key Patterns
 - **Adapter interface:** `Parse(input) -> Pipeline`. UI is source-agnostic.
-- **TeeReader interception:** stdout piped through TeeReader for byte/line monitoring.
-- **Bubbletea messages:** Runner emits StageStarted/Output/Done/Failed. UI subscribes via tea.Sub.
+- **countingWriter interception:** stdout piped through io.Pipe with countingWriter for byte/line monitoring and ring buffer capture.
+- **Bubbletea messages:** Runner emits StageStarted/Done/Failed/PipelineDone. UI reads events via blocking tea.Cmd on runner channel.
+- **SIGPIPE handling:** Non-final stages receiving SIGPIPE (from downstream early exit) are treated as successful completion.
 
 ## MVP Commands
 
@@ -45,10 +57,10 @@ make lint     # Run linter
 
 ## Dependencies
 
-- Go 1.23+
-- github.com/charmbracelet/bubbletea/v2
-- github.com/charmbracelet/lipgloss/v2
-- github.com/charmbracelet/bubbles/v2
+- Go 1.25+
+- charm.land/bubbletea/v2
+- charm.land/lipgloss/v2
+- gopkg.in/yaml.v3
 
 ## What NOT to Do
 
